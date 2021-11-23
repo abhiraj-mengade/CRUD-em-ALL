@@ -1,12 +1,11 @@
 const graphql = require('graphql');
 const Employee = require('../models/employee');
+const Department = require('../models/Department');
 
 const { GraphQLObjectType, GraphQLString, 
        GraphQLID, GraphQLInt, GraphQLSchema, GraphQLList} = graphql;
 
-//Schema defines data on the Graph like object types(book type), relation between 
-//these object types and descibes how it can reach into the graph to interact with 
-//the data to retrieve or mutate the data   
+
 const mongoose = require('mongoose');
 
 const connectDB = async() => {
@@ -30,6 +29,18 @@ const employeetype = new GraphQLObjectType({
     })
 });
 
+const DepartmentType = new GraphQLObjectType({
+    name: 'department',
+    fields: () => ({
+        id: { type: GraphQLID },
+        name: { type: GraphQLString },
+        employno:{type: GraphQLInt}
+        
+    })
+})
+
+
+
 //RootQuery describe how users can use the graph and grab data.
 //E.g Root query to get all authors, get all books, get a particular book 
 //or get a particular author.
@@ -41,10 +52,7 @@ const RootQuery = new GraphQLObjectType({
             //argument passed by the user while making the query
             args: { id: { type: GraphQLID } },
             resolve(parent, args) {
-                //Here we define how to get data from database source
-
-                //this will return the book with id passed in argument 
-                //by the user
+                
                 return Employee.findById(args.id);
             }
         },
@@ -54,6 +62,20 @@ const RootQuery = new GraphQLObjectType({
                 return Employee.find({});
             }
         },
+
+        department:{
+            type: DepartmentType,
+            args: { id: { type: GraphQLID } },
+            resolve(parent, args) {
+                return Department.findById(args.id);
+            }
+        },
+        departments:{
+            type: new GraphQLList(DepartmentType),
+            resolve(parent, args) {
+                return Department.find({});
+            }
+        }
        
         
     }
@@ -62,6 +84,21 @@ const RootQuery = new GraphQLObjectType({
 const Mutation = new GraphQLObjectType({
     name: 'Mutation',
     fields: {
+        addDepartment: {
+            type: DepartmentType,
+            args: {
+                //GraphQLNonNull make these field required
+                name: { type: GraphQLString },
+                employno: { type: GraphQLInt }
+            },
+            resolve(parent, args) {
+                let department = new Department({
+                    name: args.name,
+                    employno: args.employno
+                });
+                return department.save();
+            }
+        },
         addEmployee:{
             type: employeetype,
             args: {
@@ -77,7 +114,44 @@ const Mutation = new GraphQLObjectType({
                     email: args.email,
                     ID: args.ID
                 });
+                Department.find({ name: args.department}, function (err, docs) {
+                    if (docs.length == 0) {
+                        console.log(err);
+                        let department = new Department({
+                            name: args.department,
+                            employno: 1
+                        });
+                        department.save();
+                    }
+                    else{
+                        console.log(docs);
+                        console.log("Find and Update");
+                        Department.findOneAndUpdate({ name: args.department}, { $inc: { employno: 1 } }, function (err, doc) {
+                            if (err) {
+                                console.log("Something wrong when updating data!");
+                            }
+                            console.log(doc);
+                        });
+                    }
+                    
+                });
                 return employee.save();
+            }
+        },
+        updateDepartment: {
+            type: DepartmentType,
+            args: {
+                id: { type: GraphQLID },
+                name: { type: GraphQLString },
+                employno: { type: GraphQLInt }
+            },
+            resolve(parent, args) {
+                return Department.findByIdAndUpdate(args.id, {
+                    $set: {
+                        name: args.name,
+                        employno: args.employno
+                    }
+                }, { new: true });
             }
         },
         deleteEmployee:{
